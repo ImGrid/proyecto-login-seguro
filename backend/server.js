@@ -4,14 +4,8 @@ const cors = require("cors");
 const helmet = require("helmet");
 require("dotenv").config();
 
-// Importar middleware y controladores
-const { authenticateToken } = require("./middleware/auth");
-const {
-  createAccountLimiter,
-  loginLimiter,
-  generalLimiter,
-} = require("./middleware/rateLimiting");
-const { register, login, getProfile } = require("./controllers/authController");
+const { generalLimiter } = require("./middleware/rateLimiting");
+const authRoutes = require("./routes/authRoutes");
 
 const app = express();
 
@@ -25,18 +19,15 @@ app.use(express.urlencoded({ extended: true }));
 app.use(generalLimiter);
 
 // Conectar a MongoDB
-mongoose
-  .connect(process.env.MONGO_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  })
-  .then(() => console.log("✅ Conectado a MongoDB"))
-  .catch((err) => console.error("❌ Error conectando a MongoDB:", err));
+mongoose.connect(process.env.MONGO_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+})
+.then(() => console.log("✅ Conectado a MongoDB"))
+.catch((err) => console.error("❌ Error conectando a MongoDB:", err));
 
-// Rutas de autenticación
-app.post("/api/register", createAccountLimiter, register);
-app.post("/api/login", loginLimiter, login);
-app.get("/api/profile", authenticateToken, getProfile);
+// Rutas
+app.use("/api", authRoutes);
 
 // Ruta de health check
 app.get("/api/health", (req, res) => {
@@ -55,7 +46,7 @@ app.use((req, res) => {
   });
 });
 
-// Middleware global de manejo de errores
+// Manejo de errores global
 app.use((error, req, res, next) => {
   console.error("Error no manejado:", error);
   res.status(500).json({
@@ -65,10 +56,9 @@ app.use((error, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 3000;
-
 app.listen(PORT, () => {
-  console.log(`🚀 Servidor ejecutándose en puerto ${PORT}`);
-  console.log(`📡 API disponible en http://localhost:${PORT}/api`);
+  console.log(`🚀 Servidor en puerto ${PORT}`);
+  console.log(`📡 API: http://localhost:${PORT}/api`);
 });
 
 module.exports = app;
