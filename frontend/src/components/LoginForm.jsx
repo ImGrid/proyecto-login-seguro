@@ -52,7 +52,7 @@ export default function LoginForm() {
       className="min-h-screen w-full flex items-center justify-center bg-cover bg-center p-4"
       style={{
         backgroundImage:
-          "url('https://images.unsplash.com/photo-1496307042754-b4aa456c4a2d?auto=format&fit=crop&w=1350&q=80')",
+          "url('https://getwallpapers.com/wallpaper/full/b/7/8/1482555-beautiful-4k-wallpaper-nature-3840x2160-full-hd.jpg')",
       }}
     >
       <div className="bg-white/90 backdrop-blur-sm p-6 sm:p-8 rounded-2xl shadow-lg w-full max-w-sm sm:max-w-md">
