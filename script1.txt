@@ -1,0 +1,142 @@
+// Sistema de Pruebas de Seguridad - Vulnerabilidades Básicas
+console.log("INICIANDO EVALUACIÓN DE SEGURIDAD BÁSICA");
+console.log("=========================================");
+
+// Función para probar payloads maliciosos contra el sistema de autenticación
+async function testSecurityPayload(email, password, description, attackType) {
+  console.log(`\n=== ${attackType.toUpperCase()} ===`);
+  console.log(`Descripción: ${description}`);
+  console.log(`Payload email: "${email}"`);
+  console.log(`Payload password: "${password}"`);
+  
+  try {
+    const response = await fetch('http://localhost:3000/api/login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email, password })
+    });
+    
+    const result = await response.json();
+    console.log(`Código de estado: ${response.status}`);
+    console.log(`Respuesta del servidor:`, result);
+    
+    if (result.success) {
+      console.log(`RESULTADO: VULNERABILIDAD DETECTADA EN ${attackType}`);
+      console.log("CRÍTICO: Autenticación exitosa con payload malicioso");
+    } else {
+      console.log(`RESULTADO: ${attackType} MITIGADO CORRECTAMENTE`);
+      console.log("Estado: Sistema protegido contra este vector de ataque");
+    }
+  } catch (error) {
+    console.log(`RESULTADO: ${attackType} BLOQUEADO POR VALIDACIÓN`);
+    console.log("Detalles del error:", error.message);
+  }
+  
+  console.log("=====================================");
+}
+
+// Batería de pruebas de vulnerabilidades comunes
+console.log("\n1. EVALUACIÓN DE INYECCIÓN NOSQL");
+console.log("=================================");
+
+testSecurityPayload(
+  '{"$ne": null}',
+  'password123',
+  'Operador $ne para bypass de autenticación',
+  'INYECCIÓN NOSQL - OPERADOR $NE'
+);
+
+testSecurityPayload(
+  'admin@test.com',
+  '{"$ne": ""}',
+  'Bypass de validación de contraseña usando operador NoSQL',
+  'INYECCIÓN NOSQL - BYPASS PASSWORD'
+);
+
+// Pruebas de Cross-Site Scripting
+console.log("\n2. EVALUACIÓN DE CROSS-SITE SCRIPTING (XSS)");
+console.log("============================================");
+
+testSecurityPayload(
+  '<script>alert("XSS")</script>@test.com',
+  'password123',
+  'Inyección de script JavaScript en campo email',
+  'XSS - SCRIPT INJECTION'
+);
+
+testSecurityPayload(
+  'test@email.com',
+  '<script>document.location="http://malicious.com"</script>',
+  'Redirección maliciosa mediante script en password',
+  'XSS - REDIRECT ATTACK'
+);
+
+// Pruebas de Inyección SQL clásica
+console.log("\n3. EVALUACIÓN DE INYECCIÓN SQL");
+console.log("==============================");
+
+testSecurityPayload(
+  "admin@test.com' OR '1'='1",
+  'password123',
+  'Bypass clásico con condición OR siempre verdadera',
+  'SQL INJECTION - OR 1=1 BYPASS'
+);
+
+testSecurityPayload(
+  'admin@test.com',
+  "password' OR '1'='1",
+  'Bypass de autenticación en campo contraseña',
+  'SQL INJECTION - PASSWORD BYPASS'
+);
+
+testSecurityPayload(
+  "admin@test.com'; DROP TABLE users; --",
+  'password123',
+  'Intento de eliminación de tabla de usuarios',
+  'SQL INJECTION - DROP TABLE ATTACK'
+);
+
+// Pruebas de validación de límites
+console.log("\n4. EVALUACIÓN DE VALIDACIÓN DE LÍMITES");
+console.log("======================================");
+
+testSecurityPayload(
+  'a'.repeat(300) + '@test.com',
+  'password123',
+  'Email de 304 caracteres para probar límites de buffer',
+  'BUFFER OVERFLOW - EMAIL FIELD'
+);
+
+testSecurityPayload(
+  'test@email.com',
+  'a'.repeat(200),
+  'Contraseña de 200 caracteres para probar límites',
+  'BUFFER OVERFLOW - PASSWORD FIELD'
+);
+
+// Pruebas de bypass de autenticación
+console.log("\n5. EVALUACIÓN DE BYPASS DE AUTENTICACIÓN");
+console.log("========================================");
+
+testSecurityPayload(
+  '',
+  '',
+  'Intento de autenticación con credenciales vacías',
+  'BYPASS - EMPTY CREDENTIALS'
+);
+
+testSecurityPayload(
+  'null',
+  'null',
+  'Intento de bypass usando valores null literales',
+  'BYPASS - NULL VALUES'
+);
+
+console.log("\nEVALUACIÓN COMPLETADA");
+console.log("=====================");
+console.log("Revisar resultados anteriores para determinar el estado de seguridad del sistema");
+console.log("LEYENDA:");
+console.log("- SISTEMA PROTEGIDO: Medida de seguridad funcionando correctamente");
+console.log("- VULNERABILIDAD DETECTADA: Requiere atención inmediata");

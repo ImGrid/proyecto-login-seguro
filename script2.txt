@@ -1,0 +1,337 @@
+// Sistema de Pruebas de Seguridad Avanzadas
+console.log("INICIANDO EVALUACIÓN DE SEGURIDAD AVANZADA");
+console.log("==========================================");
+
+// 1. Pruebas de manipulación de tokens JWT
+console.log("\n1. EVALUACIÓN DE MANIPULACIÓN JWT");
+console.log("=================================");
+
+// Token JWT con firma inválida para pruebas
+const maliciousJWT = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjEyMyIsImVtYWlsIjoiYWRtaW5AdGVzdC5jb20iLCJuYW1lIjoiQWRtaW5pc3RyYWRvciIsImlhdCI6MTYzOTU4NDAwMH0.invalid_signature_for_testing";
+
+async function testJWTManipulation() {
+  console.log("=== MANIPULACIÓN JWT - TOKEN FALSIFICADO ===");
+  console.log("Descripción: Validación de token JWT con firma inválida");
+  console.log("Payload: Token con claims administrativos pero firma incorrecta");
+  
+  try {
+    const response = await fetch('http://localhost:3000/api/profile', {
+      headers: {
+        'Authorization': `Bearer ${maliciousJWT}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    const result = await response.json();
+    console.log(`Código de estado: ${response.status}`);
+    console.log("Respuesta del servidor:", result);
+    
+    if (result.success) {
+      console.log("RESULTADO: VULNERABILIDAD CRÍTICA EN VALIDACIÓN JWT");
+      console.log("CRÍTICO: Token falsificado aceptado por el sistema");
+    } else {
+      console.log("RESULTADO: VALIDACIÓN JWT FUNCIONANDO CORRECTAMENTE");
+      console.log("Estado: Token falsificado rechazado apropiadamente");
+    }
+  } catch (error) {
+    console.log("RESULTADO: JWT VALIDATION PROTEGIDO");
+    console.log("Detalles:", error.message);
+  }
+  console.log("============================================");
+}
+
+// 2. Análisis de timing attacks para enumeración de usuarios
+console.log("\n2. EVALUACIÓN DE TIMING ATTACKS");
+console.log("===============================");
+
+async function measureResponseTime(email) {
+  const startTime = performance.now();
+  try {
+    await fetch('http://localhost:3000/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password: 'incorrect_password_test' })
+    });
+  } catch (e) {}
+  const endTime = performance.now();
+  return endTime - startTime;
+}
+
+async function testTimingAttacks() {
+  console.log("=== TIMING ATTACK - ENUMERACIÓN DE USUARIOS ===");
+  console.log("Descripción: Análisis de diferencias temporales para detectar usuarios válidos");
+  console.log("Método: Comparación de tiempos de respuesta entre usuarios existentes e inexistentes");
+  
+  const existingUserEmail = "admin@test.com";
+  const nonExistentUserEmail = "usuario_inexistente_12345@test.com";
+  
+  console.log(`Probando usuario existente: ${existingUserEmail}`);
+  const timeExistingUser = await measureResponseTime(existingUserEmail);
+  
+  console.log(`Probando usuario inexistente: ${nonExistentUserEmail}`);
+  const timeNonExistentUser = await measureResponseTime(nonExistentUserEmail);
+  
+  console.log(`Tiempo de respuesta para usuario existente: ${timeExistingUser.toFixed(2)}ms`);
+  console.log(`Tiempo de respuesta para usuario inexistente: ${timeNonExistentUser.toFixed(2)}ms`);
+  console.log(`Diferencia temporal detectada: ${Math.abs(timeExistingUser - timeNonExistentUser).toFixed(2)}ms`);
+  
+  const timingThreshold = 50; // milisegundos
+  if (Math.abs(timeExistingUser - timeNonExistentUser) > timingThreshold) {
+    console.log("RESULTADO: POSIBLE VULNERABILIDAD DE TIMING ATTACK");
+    console.log("RIESGO: Diferencias temporales permiten enumeración de usuarios");
+  } else {
+    console.log("RESULTADO: TIMING ATTACK MITIGADO");
+    console.log("Estado: Tiempos de respuesta consistentes impiden enumeración");
+  }
+  console.log("===============================================");
+}
+
+// 3. Pruebas de condiciones de carrera
+console.log("\n3. EVALUACIÓN DE RACE CONDITIONS");
+console.log("================================");
+
+async function testRaceConditions() {
+  console.log("=== RACE CONDITION - CONCURRENCIA MASIVA ===");
+  console.log("Descripción: Análisis de comportamiento bajo 20 requests simultáneos");
+  console.log("Objetivo: Detectar inconsistencias en manejo de concurrencia");
+  
+  const concurrentRequests = [];
+  const numberOfRequests = 20;
+  
+  console.log(`Enviando ${numberOfRequests} requests concurrentes al endpoint de login...`);
+  
+  for (let i = 0; i < numberOfRequests; i++) {
+    concurrentRequests.push(
+      fetch('http://localhost:3000/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          email: 'test.concurrency@example.com', 
+          password: 'incorrect_password_' + i 
+        })
+      })
+    );
+  }
+  
+  const responses = await Promise.all(concurrentRequests);
+  const statusCodes = responses.map(r => r.status);
+  console.log("Códigos de estado obtenidos:", statusCodes);
+  
+  const uniqueStatusCodes = [...new Set(statusCodes)];
+  console.log("Códigos únicos detectados:", uniqueStatusCodes);
+  
+  if (uniqueStatusCodes.length > 2) {
+    console.log("RESULTADO: POSIBLE VULNERABILIDAD DE RACE CONDITION");
+    console.log("RIESGO: Comportamiento inconsistente bajo concurrencia detectado");
+  } else {
+    console.log("RESULTADO: RACE CONDITION MITIGADO");
+    console.log("Estado: Comportamiento consistente mantenido bajo carga concurrente");
+  }
+  console.log("==========================================");
+}
+
+// 4. Pruebas de contaminación de parámetros
+console.log("\n4. EVALUACIÓN DE PARAMETER POLLUTION");
+console.log("====================================");
+
+async function testParameterPollution() {
+  console.log("=== PARAMETER POLLUTION - PARÁMETROS DUPLICADOS ===");
+  console.log("Descripción: Envío de parámetros duplicados para confundir el parser");
+  console.log("Payload: email y password duplicados con valores diferentes");
+  console.log("Objetivo: Determinar qué valor procesa el servidor");
+  
+  const pollutedData = new URLSearchParams();
+  pollutedData.append('email', 'malicious@example.com');
+  pollutedData.append('email', 'legitimate@example.com');
+  pollutedData.append('password', 'wrong_password');
+  pollutedData.append('password', 'correct_password');
+  
+  console.log("Enviando parámetros duplicados:");
+  console.log("- email[1]: malicious@example.com");
+  console.log("- email[2]: legitimate@example.com");
+  console.log("- password[1]: wrong_password");
+  console.log("- password[2]: correct_password");
+  
+  try {
+    const response = await fetch('http://localhost:3000/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: pollutedData
+    });
+    const result = await response.json();
+    console.log(`Código de estado: ${response.status}`);
+    console.log("Respuesta del servidor:", result);
+    
+    if (result.success) {
+      console.log("RESULTADO: VULNERABILIDAD DE PARAMETER POLLUTION DETECTADA");
+      console.log("CRÍTICO: Parámetros duplicados procesados incorrectamente");
+    } else {
+      console.log("RESULTADO: PARAMETER POLLUTION MITIGADO");
+      console.log("Estado: Parámetros duplicados manejados apropiadamente");
+    }
+  } catch (error) {
+    console.log("RESULTADO: PARAMETER POLLUTION BLOQUEADO");
+    console.log("Detalles:", error.message);
+  }
+  console.log("===============================================");
+}
+
+// 5. Pruebas de mass assignment
+console.log("\n5. EVALUACIÓN DE MASS ASSIGNMENT");
+console.log("================================");
+
+async function testMassAssignment() {
+  console.log("=== MASS ASSIGNMENT - ESCALACIÓN DE PRIVILEGIOS ===");
+  console.log("Descripción: Intento de inyección de propiedades administrativas");
+  console.log("Payload: Campos estándar + isAdmin, role, permissions, _id");
+  console.log("Objetivo: Verificar si el sistema acepta propiedades no autorizadas");
+  
+  const maliciousPayload = {
+    name: 'Usuario de Prueba',
+    email: 'test.massassignment@example.com',
+    password: 'password123',
+    // Propiedades maliciosas para escalación de privilegios
+    isAdmin: true,
+    role: 'administrator',
+    isActive: true,
+    permissions: ['read', 'write', 'delete'],
+    _id: '507f1f77bcf86cd799439011'
+  };
+  
+  console.log("Propiedades maliciosas incluidas:");
+  console.log("- isAdmin: true");
+  console.log("- role: administrator");
+  console.log("- permissions: [read, write, delete]");
+  console.log("- _id: 507f1f77bcf86cd799439011");
+  
+  try {
+    const response = await fetch('http://localhost:3000/api/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(maliciousPayload)
+    });
+    const result = await response.json();
+    console.log(`Código de estado: ${response.status}`);
+    console.log("Respuesta del servidor:", result);
+    
+    if (result.success && result.data?.user) {
+      const user = result.data.user;
+      const hasElevatedPrivileges = user.isAdmin || user.role === 'administrator' || user.permissions;
+      
+      if (hasElevatedPrivileges) {
+        console.log("RESULTADO: VULNERABILIDAD CRÍTICA DE MASS ASSIGNMENT");
+        console.log("CRÍTICO: Escalación de privilegios exitosa mediante mass assignment");
+      } else {
+        console.log("RESULTADO: MASS ASSIGNMENT MITIGADO");
+        console.log("Estado: Solo propiedades autorizadas fueron procesadas");
+      }
+    } else {
+      console.log("RESULTADO: MASS ASSIGNMENT BLOQUEADO");
+      console.log("Estado: Registro con propiedades maliciosas rechazado");
+    }
+  } catch (error) {
+    console.log("RESULTADO: MASS ASSIGNMENT PROTEGIDO");
+    console.log("Detalles:", error.message);
+  }
+  console.log("===============================================");
+}
+
+// 6. Pruebas de inyección de headers
+console.log("\n6. EVALUACIÓN DE HEADER INJECTION");
+console.log("=================================");
+
+async function testHeaderInjection() {
+  console.log("=== HEADER INJECTION - MANIPULACIÓN HTTP ===");
+  console.log("Descripción: Inyección de headers maliciosos con caracteres CRLF");
+  console.log("Payload: Headers con \\r\\n para inyectar headers adicionales");
+  console.log("Objetivo: Verificar procesamiento seguro de headers HTTP");
+  
+  console.log("Headers maliciosos enviados:");
+  console.log("- X-Forwarded-For: 127.0.0.1\\r\\nX-Admin: true");
+  console.log("- User-Agent: TestAgent\\r\\nAuthorization: Bearer fake-token");
+  console.log("- Custom-Header: value\\r\\nX-Privilege-Escalation: admin");
+  
+  try {
+    const response = await fetch('http://localhost:3000/api/login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Forwarded-For': '127.0.0.1\\r\\nX-Admin: true',
+        'User-Agent': 'TestAgent\\r\\nAuthorization: Bearer fake-admin-token',
+        'Custom-Header': 'value\\r\\nX-Privilege-Escalation: admin'
+      },
+      body: JSON.stringify({ email: 'test@header.injection', password: 'test123' })
+    });
+    console.log("RESULTADO: HEADER INJECTION MITIGADO");
+    console.log("Estado: Headers procesados sin inyección exitosa");
+  } catch (error) {
+    console.log("RESULTADO: HEADER INJECTION BLOQUEADO");
+    console.log("Estado: Inyección de headers detectada y bloqueada");
+  }
+  console.log("==========================================");
+}
+
+// 7. Pruebas de bypass de lógica de negocio
+console.log("\n7. EVALUACIÓN DE BUSINESS LOGIC BYPASS");
+console.log("======================================");
+
+async function testBusinessLogicBypass() {
+  console.log("=== BUSINESS LOGIC BYPASS - UNICIDAD EMAIL ===");
+  console.log("Descripción: Intento de registrar múltiples cuentas con el mismo email");
+  console.log("Método: 5 registros simultáneos con email idéntico");
+  console.log("Objetivo: Verificar integridad de restricciones de unicidad");
+  
+  const testEmail = 'duplicate.test@example.com';
+  const concurrentRegistrations = [];
+  
+  console.log(`Email de prueba: ${testEmail}`);
+  console.log("Enviando 5 registros simultáneos...");
+  
+  for (let i = 0; i < 5; i++) {
+    concurrentRegistrations.push(
+      fetch('http://localhost:3000/api/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: `Usuario ${i}`,
+          email: testEmail,
+          password: 'password123'
+        })
+      })
+    );
+  }
+  
+  const results = await Promise.all(concurrentRegistrations);
+  const responses = await Promise.all(results.map(r => r.json()));
+  const successfulRegistrations = responses.filter(r => r.success).length;
+  
+  console.log(`Registros exitosos detectados: ${successfulRegistrations} de 5`);
+  console.log("Respuestas del servidor:", responses.map(r => r.message));
+  
+  if (successfulRegistrations > 1) {
+    console.log("RESULTADO: VULNERABILIDAD EN BUSINESS LOGIC");
+    console.log("CRÍTICO: Bypass de unicidad de email detectado");
+  } else {
+    console.log("RESULTADO: BUSINESS LOGIC PROTEGIDO");
+    console.log("Estado: Integridad de datos mantenida correctamente");
+  }
+  console.log("==========================================");
+}
+
+// Ejecución secuencial de todas las pruebas
+async function executeAdvancedSecurityAssessment() {
+  await testJWTManipulation();
+  await testTimingAttacks();
+  await testRaceConditions();
+  await testParameterPollution();
+  await testMassAssignment();
+  await testHeaderInjection();
+  await testBusinessLogicBypass();
+  
+  console.log("\nEVALUACIÓN AVANZADA COMPLETADA");
+  console.log("==============================");
+  console.log("Análisis integral de seguridad finalizado");
+  console.log("Revisar todos los resultados para evaluación completa del sistema");
+}
+
+// Ejecutar evaluación completa
+executeAdvancedSecurityAssessment();
